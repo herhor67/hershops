@@ -1,0 +1,666 @@
+#hercore hershops
+#================#
+#DO NOT REMOVE OR MODIFY LINES 1-3! #
+
+#=============================================#
+#   Skrypt napisany przez: herhor67           #
+#   Nazwa: HerSHOPS                           #
+#=============================================#
+#  Licencja skryptu:                          #
+# * Nie zezwalam na:                          #
+# - Usuwanie treści o autorze!                #
+# - Podszywanie się pod autora!               #
+# - Używanie kodu skryptu w swoich skryptach! #
+# - Zarabianie na skrypcie!                   #
+# - Wrzucanie skryptu do internetu!           #
+#=============================================#
+
+#Przykładowa tabliczka
+#     ,,,,,,,,,,,,,,,,,,
+#     |   [HerSHOPS]   |
+#     |      #123      |
+#     |    Otwarte     | <=> Zamknięte
+#     |                |  => Do odnowienia => Na sprzedaż
+#     ``````````````````
+
+options:
+# teksty #
+	line1: &7&l[&4&lHer&1&lSHOPS&7&l]# linia pierwsza na tabliczce
+	tag: &7&l[&4&lHer&1&lSHOPS&7&l]# tag w wiadomościach, nie zmieniaj ;_;
+	cpanel: &6&lControlPanel# tekst w GUI
+	buyshop: &6&lKup sklep# tekst w GUI
+	opened: &aOtwarte# linia 3 na tabliczce
+	closed: &cZamknięte# linia 3 na tabliczce
+	renewable: &eDo odnowienia# linia 4 na tabliczce
+	forsale: &eNa sprzedaż# linia 4 na tabliczce
+
+# liczby #
+	cenazarzad: 20# ile ma kosztować jeden rząd slotów, przy kupowaniu i odnawianiu
+	mnoznikczasu: 7*24*60# 7d * 24h * 60min; jak długo sklep ma być aktywny po kupieniu (minuty)
+	maxdooplacenia: 24*60# 24h * 60min; ile przed usunięciem można go przedłużyć (zapobiega zajmowaniu na bardzo długi czas, minuty)
+	displayedtime: 24 godziny# ta sama liczba tylko w "normalnym" formacie :P
+	defaultrows: 1# ile rzędów w sklepie przy kupieniu
+	maxmessages: 20# ile wiadomości wyświetlać na raz
+	
+# ilość itemów #
+	slot0: 1
+	slot1: 2
+	slot2: 5
+	slot3: 10
+	slot4: 16
+	slot5: 20
+	slot6: 32
+	slot7: 48
+	slot8: 64
+
+# tak/nie #
+	claimoncreate: false#czy sklep po założeniu ma należeć do zakładającego
+	destroyondelete: true#czy po usunięciu sklepu tabliczka i skrzynia mają zostać zniszczone
+
+
+aliases:
+	signitem = 323
+
+#======================================#
+#                 EVENTY               #
+#======================================#
+
+#=========={ ODCZYT OPCJI DO LISTY }==========#
+on script load:
+	set {hssettings::slot::0} to {@slot0}
+	set {hssettings::slot::1} to {@slot1}
+	set {hssettings::slot::2} to {@slot2}
+	set {hssettings::slot::3} to {@slot3}
+	set {hssettings::slot::4} to {@slot4}
+	set {hssettings::slot::5} to {@slot5}
+	set {hssettings::slot::6} to {@slot6}
+	set {hssettings::slot::7} to {@slot7}
+	set {hssettings::slot::8} to {@slot8}
+
+#=========={ TWORZENIE SKLEPU (ADMIN) }==========#
+on sign edit:
+	line 1 is ":hershops:" or ":hershop:":
+		player has permission "hershops.admin" or "hershops.create":
+			block behind event-block is chest or trapped chest:
+				add 1 to {hs::shops.count}
+				set {_id} to {hs::shops.count}
+				set line 1 to "{@line1}"
+				set line 2 to "##%{_id}%"
+				set line 3 to "{@opened}"
+				set line 4 to "{@forsale}"
+				set {hs::location::%{_id}%} to location of event-block
+				set {hs::rows::%{_id}%} to {@defaultrows}
+				set {hs::store::%{_id}%} to block behind event-block
+				if {@claimoncreate} is true:
+					set {hs::time::%{_id}%} to {@mnoznikczasu}
+					set {hs::owner::%{_id}%} to player
+					set {hs::owner.store::%block behind event-block%} to player
+					set line 4 to ""
+				send "{@tag} &aStworzono sklep &l##%{_id}%&a!"
+			else:
+				cancel event
+				set event-block to air
+				player's gamemode isn't creative:
+					drop 1 sign at event-location
+				send "{@tag} &cNajpierw postaw skrzynię lub skrzynię-pułapkę!"
+		else:
+			cancel event
+			set event-block to air
+			player's gamemode isn't creative:
+				drop 1 sign at event-location
+			send "{@tag} &cNie masz uprawnień aby tworzyć sklepy!"
+
+#=========={ BLOKADA OTWIERANIA CZYJEGOŚ MAGAZYNU }==========#
+on rightclick on chest:
+	{hs::owner.store::%event-block%} isn't name of player:
+		player doesn't have permission "hershops.open.others" or "hershops.admin":
+			cancel event
+			send "{@tag} &cTo nie twój sklep, nie możesz nim zarządzać!"
+
+#=========={ BLOKADA NISZCZENIA SKLEPU }==========#
+on break:
+	event-block is chest:
+		{hs::owner.store::%event-block%} is set:
+			cancel event
+			send "{@tag} &cNie możesz niszczyć sklepu! Musisz go najpierw usunąć!"
+	event-block is sign:
+		line 1 is "{@line1}":
+			set {_id} to line 2
+			replace all "##" with "" in {_id}
+			{hs::location::%{_id}%} is event-block:
+				cancel event
+				send "{@tag} &cNie możesz niszczyć sklepu! Musisz go najpierw usunąć!"
+
+#=========={ DODAWANIE ITEMÓW part1 }==========#
+on drop:
+	{hsplayers::hs.mode::%player%} is "chooseitem":
+		player is sneaking:
+			cancel event
+			set {_i} to event-item # {_i} trzyma item
+			set {_i} to {_i} parsed as itemtype # {_i} trzyma itemtype
+			send "{@tag} &6Dodajesz: &c&l%{_i}%" to player
+			set {hsplayers::dodaj.item::%player%} to {_i}
+			send "%{hsplayers::dodaj.item::%player%}%"
+			send "{@tag} &6Wpisz na chacie cenę tego przedmiotu!" to player
+			set {hsplayers::hs.mode::%player%} to "chooseprice"
+		else:
+			send "{@tag} &cMusisz kucnąć!" to player
+
+#=========={ DODAWANIE ITEMÓW part2 }==========#
+on chat:
+	{hsplayers::hs.mode::%player%} is "chooseprice":
+		cancel event
+		set {_cena} to message parsed as number
+		{_cena} is greater than 0:
+			{hsplayers::kategoria::%player%} is "buy":
+				set {_przedmioty} to size of {hs::items.buy::%{hsplayers::sklep::%player%}%::*}
+				{_przedmioty} is not set:
+					set {_przedmioty} to 0
+				{_przedmioty} is less than 9 * {hs::rows::%{hsplayers::sklep::%player%}%}:
+					set {_przedmioty} to {_przedmioty}+1
+					set {hs::items.buy::%{hsplayers::sklep::%player%}%::%{_przedmioty}%} to {hsplayers::dodaj.item::%player%}
+					set {hs::price.buy::%{hsplayers::sklep::%player%}%::%{_przedmioty}%} to {_cena}
+					send "{@tag} &aPomyślnie dodano przedmiot do sklepu!"
+				else:
+					send "{@tag} &cW twoim sklepie brakuje miejsca!"
+			else if {hsplayers::kategoria::%player%} is "sell":
+				set {_przedmioty} to size of {hs::items.sell::%{hsplayers::sklep::%player%}%::*}
+				{_przedmioty} is not set:
+					set {_przedmioty} to 0
+				{_przedmioty} is less than 9 * {hs::rows::%{hsplayers::sklep::%player%}%}:
+					set {_przedmioty} to {_przedmioty}+1
+					set {hs::items.sell::%{hsplayers::sklep::%player%}%::%{_przedmioty}%} to {hsplayers::dodaj.item::%player%}
+					set {hs::price.sell::%{hsplayers::sklep::%player%}%::%{_przedmioty}%} to {_cena}
+					send "{@tag} &aPomyślnie dodano przedmiot do sklepu!"
+				else:
+					send "{@tag} &cW twoim sklepie brakuje miejsca!"
+			else:
+				if player has permission "hershop.admin":
+					send "{@tag} Zła kategoria! Czyżbyś mieszał w kodzie?"
+				else:
+					send "{@tag} &cWystąpił błąd! Prosimy zgłosić to administracji i spróbować później!"
+			clear {hsplayers::dodaj.item::%player%}
+			clear {hsplayers::hs.mode::%player%}
+			clear {hsplayers::sklep::%player%}
+			clear {hsplayers::kategoria::%player%}
+		else:
+			send "{@tag} &cPodaj liczbę większą od 0!"
+
+#=========={ OTWIERANIE OKIEN (SKLEP, CPANEL) }==========#
+on click on sign:
+	line 1 is "{@line1}":
+		set {_id} to line 2
+		replace all "##" with "" in {_id}
+		{hs::location::%{_id}%} is set
+		cancel event
+#----------{ NA SPRZEDAŻ }
+		line 4 is "{@forsale}":
+			execute server command "/hsmenucpanel %player% kup %{_id}%"
+			stop
+#----------{ CONTROL PANEL }
+		player is sneaking:
+			if {hs::owner::%{_id}%} is name of player:
+				execute server command "/hsmenucpanel %player% glowna %{_id}%" 
+			else if player has permission "hershops.admin" or "hershops.manage.others":
+				execute server command "/hsmenucpanel %player% glowna %{_id}%" 
+			else:
+				send "&cTo nie twój sklep!"
+#----------{ SKLEP }
+		else:	
+#----------{ ZABLOKOWANY }
+			line 3 is "{@closed}":
+				send "&cTen sklep jest zablokowany!"
+				stop
+			else if line 3 is "{@opened}":
+				execute server command "/hsmenu %player% glowna %{_id}%"
+
+
+#======================================#
+#           KOMENDY KONSOLI            #
+#======================================#
+
+#=========={ KOMENDA OGARNIAJĄCA SKLEP }==========#
+# Ta komenda KIEDYŚ ewoluuje i będzie funkcją xD
+
+#command /hsmenu <komu> <strona> <id_sklepu> [<item>]
+command /hsmenu <player> <text> <number> [<number>]:
+	executable by: console
+	trigger:
+		wait 2 ticks
+		arg 2 is "glowna":
+			open chest with 1 rows named "&6&lSklep: &c&l%{hs::owner::%number-arg-1%}%" to player-arg
+			wait 1 tick
+			format slot 0 of player-arg with light green wool named "&a&lKup" to close then run "hsmenu %player-arg% listakup %number-arg-1%"
+			format slot 4 of player-arg with sunflower named "&6Pieniądze: &l%player-arg's balance%" to be unstealable
+			format slot 5 of player-arg with player head named "&6Właściciel: &c&l%{hs::owner::%number-arg-1%}%" to be unstealable
+			format slot 8 of player-arg with blue wool named "&b&lSprzedaj" to close then run "hsmenu %player-arg% listasprzedaj %number-arg-1%"
+#=========={ WYBÓR PRZEDMIOTU KUPNO }==========#
+		arg 2 is "listakup":
+			open chest with {hs::rows::%number-arg-1%} rows named "&a&lKup przedmiot" to player-arg
+			wait 1 tick
+			loop {hs::items.buy::%number-arg-1%::*}:
+				add 1 to {_slot}
+				set {_item} to loop-value
+				set {_ilosc} to number of {_item} in {hs::store::%number-arg-1%}
+				format slot {_slot}-1 of player-arg with {_item} with lore "&aKup||&6W magazynie: &l%{_ilosc}%" to close then run "hsmenu %player-arg% kupitemwybierzilosc %number-arg-1% %loop-index%"
+#=========={ WYBÓR ILOŚCI KUPNO }==========#
+		arg 2 is "kupitemwybierzilosc":
+			open chest with 1 rows named "&a&lKup item" to player-arg
+			wait 1 tick
+			set {_item} to {hs::items.buy::%number-arg-1%::%number-arg-2%}#jaki item
+			set {_countinshop} to number of {_item} in {hs::store::%number-arg-1%} #ile ich jest
+			set {_money} to player-arg's balance
+			set {_slot} to 0
+			loop {hssettings::slot::*}:
+				set {_count} to loop-value #ile ich ma być
+				set {_price} to {_count}*{hs::price.buy::%number-arg-1%::%number-arg-2%} #cena za taką ilość
+				set {_itemwithcount} to "%{_count}% of %{_item}%" parsed as item #stack takich przedmiotów
+				if {_countinshop} is greater than or equal to {_count}:
+					if {_money} is greater than or equal to {_price}:
+						format slot {_slot} of player-arg with {_itemwithcount} with lore "&aDostępny||&6Cena: &a&l%{_price}%" to close then run "dajitemy %player-arg% %number-arg-1% %{_count}% %number-arg-2%"
+					else:
+						format slot {_slot} of player-arg with {_itemwithcount} with lore "&aDostępny||&6Cena: &c&l%{_price}%" to be unstealable
+				else:
+					format slot {_slot} of player-arg with {_itemwithcount} with lore "&cNiedostępny" to be unstealable
+				add 1 to {_slot}
+#=========={ WYBÓR PRZEDMIOTU SPRZEDAŻ }==========#
+		arg 2 is "listasprzedaj":
+			open chest with {hs::rows::%number-arg-1%} rows named "&c&lSprzedaj item" to player-arg
+			wait 1 tick
+			loop {hs::items.sell::%number-arg-1%::*}:
+				add 1 to {_slot}
+				set {_item} to loop-value
+				format slot {_slot}-1 of player-arg with {_item} with lore "&cSprzedaj item" to close then run "hsmenu %player-arg% sprzedajitemwybierzilosc %number-arg-1% %loop-index%"
+#=========={ WYBÓR ILOŚCI SPRZEDAŻ }==========#
+		arg 2 is "sprzedajitemwybierzilosc":
+			open chest with 1 rows named "&a&lSprzedaj item" to player-arg
+			wait 1 tick
+			set {_item} to {hs::items.sell::%number-arg-1%::%number-arg-2%}#jaki item
+			set {_countineq} to number of {_item} in player-arg's inventory #ile ich jest
+			set {_money} to ({hs::owner::%number-arg-1%} parsed as player)'s balance
+			set {_slot} to 0
+			loop {hssettings::slot::*}:
+				set {_count} to loop-value #ile ich ma być
+				set {_reward} to {_count}*{hs::price.sell::%number-arg-1%::%number-arg-2%} #cena za taką ilość
+				set {_itemwithcount} to "%{_count}% of %{_item}%" parsed as item #stack takich przedmiotów
+				if {_countineq} is greater than or equal to {_count}:
+					if {_money} is greater than or equal to {_reward}:
+						format slot {_slot} of player-arg with {_itemwithcount} with lore "&aDostępny||&6Zapłata: &a&l%{_reward}%" to close then run "wezitemy %player-arg% %number-arg-1% %{_count}% %number-arg-2%"
+					else:
+						format slot {_slot} of player-arg with {_itemwithcount} with lore "&aDostępny||&6Zapłata: &c&l%{_reward}%" to be unstealable
+				else:
+					format slot {_slot} of player-arg with {_itemwithcount} with lore "&cNiedostępny" to be unstealable
+				add 1 to {_slot}
+
+#=========={ DAJE ITEMY ZE SKLEPU DO EQ I BIERZE KASE }=========#
+
+#command /dajitemy <komu> <idsklepu> <ilosc> <idtowaru>
+command /dajitemy <player> <number> <number> <number>:
+	executable by: console
+	trigger:
+		set {_sklep} to number-arg-1
+		set {_ilosc} to number-arg-2
+		set {_idtowaru} to number-arg-3
+		set {_towar} to {hs::items.buy::%{_sklep}%::%{_idtowaru}%}
+		set {_cena} to {hs::price.buy::%{_sklep}%::%{_idtowaru}%}
+		set {_cenawsumie} to {_ilosc}*{_cena}
+		player-arg's balance is greater than or equal to {_cenawsumie}:
+			loop {_ilosc} times:
+				if player-arg can hold {_towar}:
+					set {_ilewsklepie} to number of {_towar} in {hs::store::%{_sklep}%}
+					if {_ilewsklepie} is greater than 0:
+						remove {_towar} from block at {hs::store::%{_sklep}%}
+						remove {_cena} from player-arg's balance
+						add {_cena} to ({hs::owner::%{_sklep}%} parsed as player)'s balance
+						add {_cena} to {_kosztwsumie}
+						add {_towar} to player-arg's inventory
+						add 1 to {_dodanytowar}
+					else:
+						{_dodanytowar} is not set:
+							set {_dodanytowar} to 0
+						send "{@tag} &cW magazynie zabrakło towaru! Kupiono &l%{_dodanytowar}% &csztuk(i) &l%{_towar}% &cza &l%{_kosztwsumie}%$" to player-arg
+						add "&e&l%now% &6Gracz &c%player-arg% &6kupił w sklepie &c&l##%{_sklep}% %{_dodanytowar}% &6sztuk(i) &c&l%{_towar}%&6 za &c&l%{_kosztwsumie}%$&6. Zabrakło towaru w magazynie!" to {hsplayers::messagelist::%{hs::owner::%{_sklep}%}%::*}
+						stop
+				else:
+					{_dodanytowar} is not set:
+						set {_dodanytowar} to 0
+					send "{@tag} &cW ekwipunku zabrakło miejsca! Kupiono &l%{_dodanytowar}% &csztuk(i) &l%{_towar}% &cza &l%{_kosztwsumie}%$" to player-arg
+					add "&e&l%now% &6Gracz &c%player-arg% &6kupił w sklepie &c&l##%{_sklep}% %{_dodanytowar}% &6sztuk(i) &c&l%{_towar}%&6za &c&l%{_kosztwsumie}%$&6. Zabrakło mu miejsca w eq!" to {hsplayers::messagelist::%{hs::owner::%{_sklep}%}%::*}     
+					stop
+			send "{@tag} &aTransakcja przebiegła pomyślnie! Kupiono &l%{_dodanytowar}% &asztuk(i) &l%{_towar}% &aza &l%{_kosztwsumie}%$" to player-arg
+			add "&e&l%now% &6Gracz &c%player-arg% &6kupił w sklepie &c&l##%{_sklep}% %{_dodanytowar}% &6sztuk(i) &c&l%{_towar}% &6za &c&l%{_kosztwsumie}%$&6. Transakcja przebiegła pomyślnie!" to {hsplayers::messagelist::%{hs::owner::%{_sklep}%}%::*}
+		else:
+			send "{@tag} &cNie masz tyle $!" to player-arg
+
+#=========={ BIERZE ITEMY Z EQ DO SKLEPU I WYPŁACA HAJS }==========#
+
+#command /wezitemy <komu> <idsklepu> <ilosc> <idtowaru>
+command /wezitemy <player> <number> <number> <number>:
+	executable by: console
+	trigger:
+		set {_sklep} to number-arg-1
+		set {_ilosc} to number-arg-2
+		set {_idtowaru} to number-arg-3
+		set {_towar} to {hs::items.sell::%{_sklep}%::%{_idtowaru}%}
+		set {_reward} to {hs::price.sell::%{_sklep}%::%{_idtowaru}%}
+		set {_cenawsumie} to {_ilosc}*{_reward}
+		({hs::owner::%{_sklep}%} parsed as player)'s balance is greater than or equal to {_cenawsumie}:
+			loop {_ilosc} times:
+				if block at {hs::store::%{_sklep}%} can hold {_towar}:
+					set {_ileweq} to number of {_towar} in player-arg's inventory
+					if {_ileweq} is greater than 0:
+						remove {_towar} from player-arg's inventory
+						remove {_reward} from ({hs::owner::%{_sklep}%} parsed as player)'s balance
+						add {_reward} to player-arg's balance
+						add {_reward} to {_totalreward}
+						add {_towar} to block at {hs::store::%{_sklep}%}
+						add 1 to {_dodanytowar}
+					else:
+						{_dodanytowar} is not set:
+							set {_dodanytowar} to 0
+						send "{@tag} &cZabrakło towaru w ekwipunku! Sprzedano &l%{_dodanytowar}% &csztuk(i) &l%{_towar}% &cza &l%{_totalreward}%$" to player-arg
+						add "&e&l%now% &6Gracz &c%player-arg% &6sprzedał w Twoim sklepie &c&l##%{_sklep}% %{_dodanytowar}% &6sztuk(i) &c&l%{_towar}% &6za &c&l%{_totalreward}%$&6. Zabrakło mu towaru!" to {hsplayers::messagelist::%{hs::owner::%{_sklep}%}%::*}
+						stop
+				else:
+					{_dodanytowar} is not set:
+						set {_dodanytowar} to 0
+					send "{@tag} &cZabrakło miejsca w magazynie! Sprzedano &l%{_dodanytowar}% &csztuk(i) &l%{_towar}% &cza &l%{_totalreward}%$" to player-arg
+					add "&e&l%now% &6Gracz &c%player-arg% &6sprzedał w Twoim sklepie &c&l##%{_sklep}% %{_dodanytowar}% &6sztuk(i) &c&l%{_towar}% &6za &c&l%{_totalreward}%$&6. Zabrakło miejsca w magazynie!" to {hsplayers::messagelist::%{hs::owner::%{_sklep}%}%::*}
+					stop
+			send "{@tag} &aTransakcja przebiegła pomyślnie! Sprzedano &l%{_dodanytowar}% &asztuk(i) &l%{_towar}% &aza &l%{_totalreward}%$" to player-arg
+			add "&e&l%now% &6Gracz &c%player-arg% &6sprzedał w Twoim sklepie &c&l##%{_sklep}% %{_dodanytowar}% &6sztuk(i) &c&l%{_towar}% &6za &c&l%{_totalreward}%$&6. Transakcja przebiegła pomyślnie!" to {hsplayers::messagelist::%{hs::owner::%{_sklep}%}%::*}
+		else:
+			send "{@tag} &cWłaściciel nie ma tyle $!" to player-arg
+
+
+# No i ta...
+
+#command /hamenucpanel <komu> <strona> <idsklepu> [<kategoria>]
+command /hsmenucpanel <player> <text> <number> [<text>]:
+	trigger:
+		wait 2 ticks
+		arg 2 is "glowna":
+			open chest with 1 rows named "{@cpanel}" to player-arg
+			wait 1 tick
+			format slot 1 of player-arg with sugar cane named "&aDodaj przedmiot" to close then run "hsmenucpanel %player-arg% dodaj %number-arg-1%"
+			format slot 2 of player-arg with barrier named "&cUsuń przedmiot" to close then run "hsmenucpanel %player-arg% usun %number-arg-1%"
+			format slot 3 of player-arg with signitem named "&6Zmień rozmiar" to close then run "hsmenucpanel %player-arg% zmienrozmiar %number-arg-1%"
+			format slot 4 of player-arg with yellow wool named "&6Zmień status" to close then run "hsmenucpanel %player-arg% zmienstatus %number-arg-1%"
+			format slot 5 of player-arg with red wool named "&cPorzuć sklep" to close then run "hsmenucpanel %player-arg% porzucsklep %number-arg-1%"
+			format slot 6 of player-arg with clock named "&aOpłać abonament" to close then run "hsmenucpanel %player-arg% abonament %number-arg-1%"
+			player-arg has permission "hershops.admin" or "hershops.destroy":
+				format slot 8 of player-arg with barrier named "&4Usuń sklep" to close then run "hsmenucpanel %player-arg% usunsklepadmin %number-arg-1%"
+		arg 2 is "dodaj":
+			open chest with 1 rows named "{@cpanel}" to player-arg
+			wait 1 tick
+			format slot 0 of player-arg with light green wool named "&aDodaj przedmiot do kupna" to close then run "hsmenucpanel %player-arg% wybierzitem %number-arg-1% buy"
+			format slot 8 of player-arg with blue wool named "&bDodaj przedmiot do sprzedaży" to close then run "hsmenucpanel %player-arg% wybierzitem %number-arg-1% sell"
+		arg 2 is "wybierzitem":
+			set {hsplayers::hs.mode::%player-arg%} to "chooseitem"
+			set {hsplayers::sklep::%player-arg%} to number-arg-1
+			set {hsplayers::kategoria::%player-arg%} to arg 4
+			send "&6Kucnij (SHIFT) i wyrzuć 1 sztukę towaru ze swojego ekwipunku!" to player-arg
+		arg 2 is "usun":
+			open chest with 1 rows named "{@cpanel}" to player-arg
+			wait 1 tick
+			format slot 0 of player-arg with light green wool named "&aUsuń przedmiot z kupna" to close then run "hsmenucpanel %player-arg% usunitem %number-arg-1% buy"
+			format slot 8 of player-arg with blue wool named "&bUsuń przedmiot ze sprzedaży" to close then run "hsmenucpanel %player-arg% usunitem %number-arg-1% sell"
+		arg 2 is "usunitem":
+			open chest with {hs::rows::%number-arg-1%} rows named "{@cpanel}" to player-arg
+			wait 1 tick
+			arg 4 is "buy":
+				loop {hs::items.buy::%number-arg-1%::*}:
+					add 1 to {_slot}
+					format slot {_slot}-1 of player-arg with loop-value named "&4Usuń" to close then run "hsmenucpanel %player-arg% usunbuy %number-arg-1% %loop-index%"
+			arg 4 is "sell":
+				loop {hs::items.sell::%number-arg-1%::*}:
+					add 1 to {_slot}
+					format slot {_slot}-1 of player-arg with loop-value named "&4Usuń" to close then run "hsmenucpanel %player-arg% usunsell %number-arg-1% %loop-index%"
+		arg 2 is "usunbuy":
+			clear {hs::items.buy::%number-arg-1%::%arg 4%}
+			clear {hs::price.buy::%number-arg-1%::%arg 4%}
+			send "{@tag} &aUsunięto przedmiot pomyślnie!" to player-arg
+		arg 2 is "usunsell":
+			clear {hs::items.sell::%number-arg-1%::%arg 4%}
+			clear {hs::price.sell::%number-arg-1%::%arg 4%}
+			send "{@tag} &aUsunięto przedmiot pomyślnie!" to player-arg
+		arg 2 is "zmienstatus":
+			arg 4 is not set:
+				open chest with 1 rows named "{@cpanel}" to player-arg
+				wait 1 tick
+				format slot 0 of player-arg with light green wool named "&aOtwórz" to close then run "hsmenucpanel %player-arg% zmienstatus %number-arg-1% odblokuj"
+				format slot 8 of player-arg with red wool named "&cZamknij" to close then run "hsmenucpanel %player-arg% zmienstatus %number-arg-1% zablokuj"
+			arg 4 is "zablokuj":
+				set line 3 of block at {hs::location::%number-arg%} to "{@closed}"
+				send "{@tag} &aZablokowano sklep!" to player-arg
+			arg 4 is "odblokuj":
+				set line 3 of block at {hs::location::%number-arg%} to "{@opened}"
+				send "{@tag} &aOdblokowano sklep!" to player-arg
+		arg 2 is "zmienrozmiar":
+			open chest with 1 rows named "{@cpanel}" to player-arg
+			wait 1 tick
+			loop 6 times:
+				format slot loop-number of player-arg with yellow wool named "&6%loop-number% rząd" to close then run "hsmenucpanel %player-arg% ustawrozmiar %number-arg-1% %loop-number%"
+		arg 2 is "ustawrozmiar":
+			set {_rzedy} to arg 4 parsed as number
+			set {_przedmioty} to size of {hs::items.buy::%number-arg%::*}
+			set {_przedmioty} to {_przedmioty} parsed as number
+			{_przedmioty} is not set:
+				set {_przedmioty} to 0
+			{_przedmioty} is less than or equal to (9 * {_rzedy}):
+				set {_przedmioty2} to size of {hs::items.sell::%number-arg%::*}
+				set {_przedmioty2} to {_przedmioty2} parsed as number
+				{_przedmioty2} is not set:
+					set {_przedmioty2} to 0
+				{_przedmioty2} is less than or equal to (9 * {_rzedy}):
+					set {_rzedy2} to {_rzedy} - {hs::rows::%number-arg%}
+					set {_cena} to {@cenazarzad} * {_rzedy2}
+					send "%{_cena}%" to player-arg
+					set {hs::rows::%number-arg%} to {_rzedy}
+					remove {_cena} from player-arg's balance
+					send "{@tag} &aPomyślnie zmieniono ilość rzędów na %{_rzedy}%!" to player-arg
+				else:
+					send "{@tag} &cW sklepie jest za dużo przedmiotów w kategorii sprzedaż! Usuń jakieś!" to player-arg
+			else:
+				send "{@tag} &cW sklepie jest za dużo przedmiotów w kategorii kupno! Usuń jakieś!" to player-arg
+		arg 2 is "porzucsklep":
+			open chest with 1 rows named "{@cpanel}" to player-arg
+			wait 1 tick
+			loop 9 times:
+				add 1 to {_slot}
+				format slot {_slot}-1 of player-arg with red wool named "&cAnuluj" to close
+			set {_porzuc} to 0 or 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8
+			format slot {_porzuc} of player-arg with light green wool named "&aPorzuć" to close then run "hsmenucpanel %player-arg% porzucskleppotwierdz %number-arg%"
+		arg 2 is "porzucskleppotwierdz":
+			set line 3 of block at {hs::location::%number-arg%} to "{@opened}"
+			set line 4 of block at {hs::location::%number-arg%} to "{@forsale}"
+			send "{@tag} &6Twój sklep &c&l##%number-arg% &6został wystawiony na sprzedaż!" to ({hs::owner::%number-arg%} parsed as player)
+			clear {hs::owner::%number-arg%}
+			clear {hs::owner.store::%number-arg%}
+			clear {hs::items.buy::%number-arg%::*}
+			clear {hs::items.sell::%number-arg%::*}
+			clear {hs::price.buy::%number-arg%::*}
+			clear {hs::price.sell::%number-arg%::*}
+			clear {hs::time::%number-arg%}
+			set {hs::rows::%number-arg%} to {@defaultrows}
+		arg 2 is "kup":
+			set {_cena} to {@cenazarzad}
+			set {_cena} to {_cena} * {@defaultrows}
+			set {_cena} to {_cena} parsed as number
+			open chest with 1 rows named "{@buyshop}" to player-arg
+			wait 1 tick
+			format slot 0 of player-arg with sunflower named "&6Koszt: %{_cena}%" to be unstealable
+			loop 8 times:
+				add 1 to {_slot}
+				format slot {_slot} of player-arg with red wool named "&cAnuluj" to close
+			set {_kup} to 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8
+			format slot {_kup} of player-arg with light green wool named "&aKup" to close then run "hsmenucpanel %player-arg% zaplackupno %number-arg%"
+		arg 2 is "zaplackupno":
+			set {_cena} to {@cenazarzad}
+			set {_cena} to {_cena} * {@defaultrows}
+			set {_cena} to {_cena} parsed as number
+			player-arg's balance is greater than or equal to {_cena}:
+				set {hs::owner::%number-arg%} to name of player-arg
+				set line 3 of block at {hs::location::%number-arg%} to "{@opened}"
+				set line 4 of block at {hs::location::%number-arg%} to ""
+				set {hs::owner.store::%{hs::store::%number-arg%}%} to name of player-arg
+				set {hs::time::%number-arg%} to {@mnoznikczasu}
+				set {hs::mode::%number-arg%} to "unlocked"
+				send "{@tag} &aKupiono sklep &l##%number-arg%&a!" to player-arg
+				remove {_cena} from player-arg's balance
+			else:
+				send "{@tag} &cNie masz wystarczająco $!" to player-arg
+		arg 2 is "abonament":
+			set {_cena} to {@cenazarzad}
+			set {_cena} to {_cena} * {hs::rows::%number-arg%}
+			set {_cena} to {_cena} parsed as number
+			open chest with 1 rows named "{@cpanel}" to player-arg
+			wait 1 tick
+			format slot 0 of player-arg with sunflower named "&6Koszt: %{_cena}%" to be unstealable
+			loop 8 times:
+				add 1 to {_slot}
+				format slot {_slot} of player-arg with red wool named "&cAnuluj" to close
+			set {_kup} to 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8
+			format slot {_kup} of player-arg with light green wool named "&aOpłać abonament" to close then run "hsmenucpanel %player-arg% oplacabonament %number-arg%"
+		arg 2 is "oplacabonament":
+			set {_cena} to {@cenazarzad}
+			set {_cena} to {_cena} * {hs::rows::%number-arg%}
+			set {_cena} to {_cena} parsed as number
+			player-arg's balance is greater than or equal to {_cena}:
+				set {_max} to {@maxdooplacenia}
+				set {_max} to {_max} parsed as number
+				{hs::time::%number-arg%} is less than or equal to {_max}:
+					add {@mnoznikczasu} to {hs::time::%number-arg%} 
+					send "{@tag} &aOpłacono abonament sklepu &l##%number-arg%&a!" to player-arg
+					set line 4 of block at {hs::location::%number-arg%} to ""
+					remove {_cena} from player-arg's balance
+				else:
+					send "{@tag} &cAbonament możesz opłacić maksymalnie &l{@displayedtime} &cprzed wystawieniem sklepu na sprzedaż!" to player-arg
+			else:
+				send "{@tag} &cNie masz wystarczająco $!" to player-arg
+		arg 2 is "usunsklepadmin":
+			player-arg has permission "hershops.admin" or "hershops.destroy":
+				open chest with 1 rows named "{@cpanel}" to player-arg
+				wait 1 tick
+				loop 9 times:
+					add 1 to {_slot}
+					format slot {_slot}-1 of player-arg with red wool named "&cAnuluj" to close
+				set {_usun} to 0 or 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8
+				format slot {_usun} of player-arg with light green wool named "&aUsuń" to close then run "hsmenucpanel %player-arg% usunskleppotwierdz %number-arg%"
+		arg 2 is "usunskleppotwierdz":
+			player-arg has permission "hershops.admin" or "hershops.destroy":
+				set line 1 of block at {hs::location::%number-arg%} to ""
+				set line 2 of block at {hs::location::%number-arg%} to ""
+				set line 3 of block at {hs::location::%number-arg%} to ""
+				set line 4 of block at {hs::location::%number-arg%} to ""
+				send "{@tag} &aUsunąłeś sklep &l##%number-arg%&a!" to player-arg
+				add "&e&l%now% &6Twój sklep &c&l##%number-arg% &6został usunięty przez administratora!" to {hsplayers::messagelist::%{hs::owner::%number-arg%}%::*}
+				if {@destroyondelete} is true:
+					set block at {hs::location::%number-arg%} to air
+					set block at {hs::store::%number-arg%} to air
+				clear {hs::location::%number-arg%}
+				clear {hs::store::%number-arg%}
+				clear {hs::owner::%number-arg%}
+				clear {hs::owner.store::%number-arg%}
+				clear {hs::items.buy::%number-arg%::*}
+				clear {hs::items.sell::%number-arg%::*}
+				clear {hs::price.buy::%number-arg%::*}
+				clear {hs::price.sell::%number-arg%::*}
+				clear {hs::time::%number-arg%}
+				clear {hs::rows::%number-arg%}
+
+
+
+command /hershops [<text="help">]:
+	aliases: /hershop, /hs
+	trigger:
+		arg 1 is "wiadomosci":
+			set {_count} to size of {hsplayers::messagelist::%player%::*}
+			{_count} is 0:
+				send "{@tag} &6Nie masz żadnych nieprzeczytanych powiadomień!"
+			else:
+				loop {hsplayers::messagelist::%player%::*}:
+					add 1 to {_number}
+					send "&4&l%{_number}%. %loop-value%"
+					clear {hsplayers::messagelist::%player%::%loop-index%}
+					{_number} is {@maxmessages}:
+						exit loop
+				send "{@tag} &6Wyświetlono &c&l%{_number}% &6z &c&l%{_count}% &6powiadomień!"	
+		arg is "help" or "pomoc":
+			send "&c/hershops (help|pomoc) &6- wyświetla tę listę"
+			send "&c/hershops wiadomosci &6- wyświetla powiadomienia ze sklepów"
+		player has permission "hershops.admin":
+			arg is "help" or "pomoc":
+				send "&c/hershops reload &6- odświeża skrypt"
+				send "&c/hershopsdel etevar iablescon firmation &6- usuwa wszystkie zmienne skryptu, tylko KONSOLA"
+			arg is "reload":
+				execute player command "/sk reload %script%"
+#		arg is "download":
+#			send "&7[&6Skript&7] &rDownloading &6%script%.sk&r..."
+#			download "url" to "plugins/Skript/scripts/%script%.sk"
+#			send "&7[&6Skript&7] &rSuccesfully downloaded &6%script%.sk&r."
+
+
+
+
+command /hershopdel etevar iablescon firmation:
+	executable by: console
+	trigger:
+		loop {hs::owner::*}:
+			add "&e&l%now% &6Twój sklep &c&l##%loop-index% &6został usunięty przez administratora!" to {hsplayers::messagelist::%loop-value%::*}
+		loop {hs::location::*}:
+			set line 1 of block at loop-value to ""
+			set line 2 of block at loop-value to ""
+			set line 3 of block at loop-value to ""
+			set line 4 of block at loop-value to ""
+			if {@destroyondelete} is true:
+				set block at loop-value to air
+		if {@destroyondelete} is true:
+			loop {hs::store::*}:
+				set block at loop-value to air
+		clear {hs::location::*}
+		clear {hs::owner::*}
+		clear {hs::rows::*}
+		clear {hs::store::*}
+		clear {hs::time::*}
+		clear {hs::owner.store::*}
+		clear {hs::items.buy::*}
+		clear {hs::items.sell::*}
+		clear {hs::price.buy::*}
+		clear {hs::price.sell::*}
+		clear {hs::shops.count}
+		send "&4&lDeleted all shops!"
+		
+
+every minute: #odliczanie czasu aktywności sklepów
+	loop {hs::time::*}:
+		loop-value is greater than 0:
+			remove 1 from {hs::time::%loop-index%}
+			line 4 of block at {hs::location::%loop-index%} is "":
+				set {_max} to {@maxdooplacenia}
+				set {_max} to {_max} parsed as number
+				loop-value is less than or equal to {_max}:
+					set line 4 of block at {hs::location::%loop-index%} to "{@renewable}"
+					add "&e&l%now% &6Abonament za Twój sklep &c&l##%loop-index% &6może zostać przedłużony!" to {hsplayers::messagelist::%{hs::owner::%loop-index%}%::*}
+		else:
+			set line 3 of block at {hs::location::%loop-index%} to "{@opened}"
+			set line 4 of block at {hs::location::%loop-index%} to "{@forsale}"
+			add "&e&l%now% &6Twój sklep &c&l##%loop-index% &6nie został opłacony, dlatego jest wystawiony na sprzedaż!" to {hsplayers::messagelist::%{hs::owner::%loop-index%}%::*}
+			clear {hs::owner::%loop-index%}
+			clear {hs::owner.magazyn::%loop-index%}
+			clear {hs::items.buy::%loop-index%::*}
+			clear {hs::items.sell::%loop-index%::*}
+			clear {hs::price.buy::%loop-index%::*}
+			clear {hs::price.sell::%loop-index%::*}
+			clear {hs::time::%loop-index%}
+			set {hs::rows::%loop-index%} to {@defaultrows}
+	loop all players:
+		set {_ilosc} to size of {hsplayers::messagelist::%loop-player%::*}
+		{_ilosc} is greater than 0:
+			send "{@tag} &6Masz &c&l%{_ilosc}% &6powiadomień ze sklepów! Wpisz &c&l/hershops wiadomosci &6aby je odczytać." to loop-player
+		clear {_ilosc}
+		
+		
+		
+		
+( ͡° ͜ʖ ͡°)

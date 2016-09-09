@@ -245,7 +245,7 @@ command /hsmenu <player> <text> <number> [<number>]:
 				format slot {_slot}-1 of player-arg with {_item} with lore "&aKup||&6W magazynie: &l%{_ilosc}%" to close then run "hsmenu %player-arg% kupitemwybierzilosc %number-arg-1% %loop-index%"
 #=========={ WYBÓR ILOŚCI KUPNO }==========#
 		arg 2 is "kupitemwybierzilosc":
-			open chest with 1 rows named "&a&lKup item" to player-arg
+			open chest with 1 rows named "&a&lKup przedmiot" to player-arg
 			wait 1 tick
 			set {_item} to {hs::items.buy::%number-arg-1%::%number-arg-2%}#jaki item
 			set {_countinshop} to number of {_item} in {hs::store::%number-arg-1%} #ile ich jest
@@ -265,15 +265,15 @@ command /hsmenu <player> <text> <number> [<number>]:
 				add 1 to {_slot}
 #=========={ WYBÓR PRZEDMIOTU SPRZEDAŻ }==========#
 		arg 2 is "listasprzedaj":
-			open chest with {hs::rows::%number-arg-1%} rows named "&c&lSprzedaj item" to player-arg
+			open chest with {hs::rows::%number-arg-1%} rows named "&1&lSprzedaj przedmiot" to player-arg
 			wait 1 tick
 			loop {hs::items.sell::%number-arg-1%::*}:
 				add 1 to {_slot}
 				set {_item} to loop-value
-				format slot {_slot}-1 of player-arg with {_item} with lore "&cSprzedaj item" to close then run "hsmenu %player-arg% sprzedajitemwybierzilosc %number-arg-1% %loop-index%"
+				format slot {_slot}-1 of player-arg with {_item} with lore "&cSprzedaj przedmiot" to close then run "hsmenu %player-arg% sprzedajitemwybierzilosc %number-arg-1% %loop-index%"
 #=========={ WYBÓR ILOŚCI SPRZEDAŻ }==========#
 		arg 2 is "sprzedajitemwybierzilosc":
-			open chest with 1 rows named "&a&lSprzedaj item" to player-arg
+			open chest with 1 rows named "&1&lSprzedaj przedmiot" to player-arg
 			wait 1 tick
 			set {_item} to {hs::items.sell::%number-arg-1%::%number-arg-2%}#jaki item
 			set {_countineq} to number of {_item} in player-arg's inventory #ile ich jest
@@ -663,4 +663,4 @@ every minute: #odliczanie czasu aktywności sklepów
 		
 		
 		
-( ͡° ͜ʖ ͡°)
+#( ͡° ͜ʖ ͡°)

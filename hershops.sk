@@ -382,10 +382,10 @@ command /hsmenucpanel <player> <text> <number> [<text>]:
 		arg 2 is "glowna":
 			open chest with 1 rows named "{@cpanel}" to player-arg
 			wait 1 tick
-			format slot 1 of player-arg with sugar cane named "&aDodaj przedmiot" to close then run "hsmenucpanel %player-arg% dodaj %number-arg-1%"
+			format slot 1 of player-arg with vine named "&aDodaj przedmiot" to close then run "hsmenucpanel %player-arg% dodaj %number-arg-1%"
 			format slot 2 of player-arg with barrier named "&cUsuń przedmiot" to close then run "hsmenucpanel %player-arg% usun %number-arg-1%"
 			format slot 3 of player-arg with signitem named "&6Zmień rozmiar" to close then run "hsmenucpanel %player-arg% zmienrozmiar %number-arg-1%"
-			format slot 4 of player-arg with yellow wool named "&6Zmień status" to close then run "hsmenucpanel %player-arg% zmienstatus %number-arg-1%"
+			format slot 4 of player-arg with lever named "&6Zmień status" to close then run "hsmenucpanel %player-arg% zmienstatus %number-arg-1%"
 			format slot 5 of player-arg with red wool named "&cPorzuć sklep" to close then run "hsmenucpanel %player-arg% porzucsklep %number-arg-1%"
 			format slot 6 of player-arg with clock named "&aOpłać abonament" to close then run "hsmenucpanel %player-arg% abonament %number-arg-1%"
 			player-arg has permission "hershops.admin" or "hershops.destroy":
@@ -440,7 +440,7 @@ command /hsmenucpanel <player> <text> <number> [<text>]:
 			open chest with 1 rows named "{@cpanel}" to player-arg
 			wait 1 tick
 			loop 6 times:
-				format slot loop-number of player-arg with yellow wool named "&6%loop-number% rząd" to close then run "hsmenucpanel %player-arg% ustawrozmiar %number-arg-1% %loop-number%"
+				format slot loop-number of player-arg with loop-number of yellow wool named "&6%loop-number% rząd" to close then run "hsmenucpanel %player-arg% ustawrozmiar %number-arg-1% %loop-number%"
 		arg 2 is "ustawrozmiar":
 			set {_rzedy} to arg 4 parsed as number
 			set {_przedmioty} to size of {hs::items.buy::%number-arg%::*}
